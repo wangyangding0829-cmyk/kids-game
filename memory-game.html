@@ -1,0 +1,309 @@
+memory-game.html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>记忆翻牌小游戏</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #ff9a9e, #fad0c4, #f6d365, #fda085);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .game-container {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 24px;
+      padding: 24px 24px 32px;
+      max-width: 900px;
+      width: 95%;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      color: #ff5c7b;
+      margin-bottom: 8px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: #ff8a3d;
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+
+    .message {
+      min-height: 32px;
+      font-size: 1.1rem;
+      color: #ff5c7b;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .controls {
+      margin-bottom: 12px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 8px 18px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      background: linear-gradient(135deg, #ff7eb3, #ff758c);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.2);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(80px, 140px));
+      gap: 14px;
+      justify-content: center;
+    }
+
+    .card {
+      position: relative;
+      width: 100%;
+      padding-top: 120%; /* 大卡片：高度约为宽度的1.2倍 */
+      cursor: pointer;
+      perspective: 1000px;
+    }
+
+    .card-inner {
+      position: absolute;
+      inset: 0;
+      border-radius: 18px;
+      transform-style: preserve-3d;
+      transition: transform 0.4s;
+    }
+
+    .card.flipped .card-inner,
+    .card.matched .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      border-radius: 18px;
+      backface-visibility: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem; /* 大图案，方便小朋友看 */
+      user-select: none;
+    }
+
+    .card-back {
+      background: linear-gradient(135deg, #ffcf71, #fda085);
+      border: 4px solid #ff8a3d;
+      color: #ffffff;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.25);
+    }
+
+    .card-front {
+      transform: rotateY(180deg);
+      background: #ffffff;
+      border: 4px solid #6c5ce7;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+    }
+
+    .card.matched .card-front {
+      border-color: #00b894;
+      background: #dfffe9;
+      box-shadow: 0 0 18px rgba(0, 184, 148, 0.7);
+    }
+
+    .info {
+      margin-top: 12px;
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    .info span {
+      font-weight: 700;
+      color: #ff5c7b;
+    }
+
+    @media (max-width: 600px) {
+      .game-container {
+        padding: 16px 12px 24px;
+      }
+
+      h1 {
+        font-size: 1.7rem;
+      }
+
+      .card-face {
+        font-size: 2.4rem;
+      }
+
+      .card-back {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>记忆翻牌小游戏</h1>
+    <div class="subtitle">找出两张一样的图案，全部配对就赢啦！</div>
+
+    <div class="message" id="message"></div>
+
+    <div class="controls">
+      <button class="btn" id="restartBtn">重新开始</button>
+    </div>
+
+    <div class="grid" id="gameGrid">
+      <!-- 卡片会由 JavaScript 动态生成 -->
+    </div>
+
+    <div class="info">
+      已经翻牌次数：<span id="moves">0</span>
+    </div>
+  </div>
+
+  <script>
+    const icons = ["🐶", "🐱", "🐰", "🐸", "🐟", "🦄"]; // 6 对
+    const grid = document.getElementById("gameGrid");
+    const messageEl = document.getElementById("message");
+    const movesEl = document.getElementById("moves");
+    const restartBtn = document.getElementById("restartBtn");
+
+    let firstCard = null;
+    let secondCard = null;
+    let lockBoard = false;
+    let matchedCount = 0;
+    let moves = 0;
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function createCard(icon, index) {
+      const card = document.createElement("div");
+      card.classList.add("card");
+      card.dataset.icon = icon;
+      card.dataset.index = index;
+
+      const inner = document.createElement("div");
+      inner.classList.add("card-inner");
+
+      const front = document.createElement("div");
+      front.classList.add("card-face", "card-front");
+      front.textContent = icon;
+
+      const back = document.createElement("div");
+      back.classList.add("card-face", "card-back");
+      back.textContent = "?";
+
+      inner.appendChild(front);
+      inner.appendChild(back);
+      card.appendChild(inner);
+
+      card.addEventListener("click", () => onCardClick(card));
+      return card;
+    }
+
+    function initGame() {
+      grid.innerHTML = "";
+      messageEl.textContent = "";
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      matchedCount = 0;
+      moves = 0;
+      movesEl.textContent = "0";
+
+      // 生成 6 对图案，共 12 张卡片
+      const cardIcons = shuffle([...icons, ...icons]);
+
+      cardIcons.forEach((icon, index) => {
+        const card = createCard(icon, index);
+        grid.appendChild(card);
+      });
+    }
+
+    function onCardClick(card) {
+      if (lockBoard) return;
+      if (card === firstCard) return; // 防止点击同一张
+      if (card.classList.contains("matched")) return;
+
+      card.classList.add("flipped");
+
+      if (!firstCard) {
+        firstCard = card;
+        return;
+      }
+
+      secondCard = card;
+      moves++;
+      movesEl.textContent = moves;
+      checkMatch();
+    }
+
+    function checkMatch() {
+      const isMatch = firstCard.dataset.icon === secondCard.dataset.icon;
+
+      if (isMatch) {
+        firstCard.classList.add("matched");
+        secondCard.classList.add("matched");
+        firstCard = null;
+        secondCard = null;
+        matchedCount += 2;
+
+        if (matchedCount === 12) {
+          messageEl.textContent = "太棒了，你赢了！🎉";
+        }
+      } else {
+        lockBoard = true;
+        setTimeout(() => {
+          firstCard.classList.remove("flipped");
+          secondCard.classList.remove("flipped");
+          firstCard = null;
+          secondCard = null;
+          lockBoard = false;
+        }, 1000); // 1 秒后翻回去
+      }
+    }
+
+    restartBtn.addEventListener("click", initGame);
+
+    // 页面加载后自动开始游戏
+    window.addEventListener("load", initGame);
+  </script>
+</body>
+</html>
